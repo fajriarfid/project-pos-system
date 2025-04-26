@@ -1,9 +1,11 @@
+"use client";
+
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import TopBar from "../components/TopBar";
 import { useCart } from "../features/Cart/context";
 import { useAuth } from "../features/Auth/context";
-import { getAddresses } from "../api/address";
+import { getAddresses, getShippingCost } from "../api/address";
 import { createOrder } from "../api/order";
 import BreadCrumb from "../components/BreadCrumb";
 import {
@@ -14,6 +16,7 @@ import {
   CreditCard,
   AlertCircle,
 } from "react-feather";
+import { FiEdit2 } from "react-icons/fi";
 
 const Checkout = () => {
   const { cartItems, getCartTotal, clearCart } = useCart();
@@ -33,25 +36,37 @@ const Checkout = () => {
     const fetchAddresses = async () => {
       try {
         setLoading(true);
-        const data = await getAddresses(currentUser.id);
-        setAddresses(data);
+        // Pastikan currentUser ada sebelum mengakses properti id
+        if (currentUser && currentUser.id) {
+          const response = await getAddresses(currentUser.id);
+          // Pastikan data yang diterima adalah array
+          const data = Array.isArray(response) ? response : response.data || [];
+          setAddresses(data);
 
-        if (data.length > 0) {
-          setSelectedAddressId(data[0].id);
+          if (data.length > 0) {
+            // Pilih alamat default jika ada, jika tidak pilih alamat pertama
+            const defaultAddress = data.find((addr) => addr.isDefault);
+            setSelectedAddressId(
+              defaultAddress ? defaultAddress.id : data[0].id
+            );
+          }
+        } else {
+          // Handle jika user belum login
+          console.warn("User not logged in or missing ID");
+          setAddresses([]);
         }
-
-        setLoading(false);
       } catch (err) {
         console.error("Error fetching addresses:", err);
         setError(err.message || "Failed to fetch addresses");
+      } finally {
         setLoading(false);
       }
     };
 
     fetchAddresses();
-  }, [currentUser.id]);
+  }, [currentUser]);
 
-  // Calculate shipping cost when address or cart items change
+  // Calculate shipping cost using getShippingCost function from address API
   useEffect(() => {
     const calculateShippingCost = () => {
       if (!selectedAddressId || cartItems.length === 0) return;
@@ -62,36 +77,15 @@ const Checkout = () => {
       );
       if (!selectedAddress) return;
 
-      // Base shipping cost
-      let baseCost = 10000;
+      // Gunakan fungsi getShippingCost dari API address
+      const regency = selectedAddress.regency;
+      console.log("Checkout - calculating shipping for regency:", regency);
 
-      // Add cost based on region
-      // This is a simple example - in a real app, you would likely call an API
-      // that calculates shipping based on distance, weight, etc.
-      const region = selectedAddress.province.toLowerCase();
+      // Panggil fungsi getShippingCost untuk mendapatkan ongkir yang benar
+      const cost = getShippingCost(regency);
+      console.log("Checkout - shipping cost calculated:", cost);
 
-      if (region.includes("jawa")) {
-        baseCost += 5000;
-      } else if (region.includes("sumatra")) {
-        baseCost += 15000;
-      } else if (region.includes("kalimantan")) {
-        baseCost += 20000;
-      } else if (region.includes("sulawesi")) {
-        baseCost += 25000;
-      } else if (region.includes("papua") || region.includes("maluku")) {
-        baseCost += 35000;
-      } else {
-        baseCost += 30000; // Other regions
-      }
-
-      // Add cost based on total cart items (simple weight estimation)
-      const totalItems = cartItems.reduce(
-        (total, item) => total + item.quantity,
-        0
-      );
-      const weightCost = totalItems * 1000; // 1000 per item
-
-      setShippingCost(baseCost + weightCost);
+      setShippingCost(cost);
     };
 
     calculateShippingCost();
@@ -117,6 +111,11 @@ const Checkout = () => {
       return;
     }
 
+    if (!currentUser || !currentUser.id) {
+      setError("You need to login first");
+      return;
+    }
+
     try {
       setProcessingOrder(true);
       setError("");
@@ -136,24 +135,38 @@ const Checkout = () => {
         shippingCost: shippingCost,
         userId: currentUser.id,
         orderDate: new Date().toISOString(),
+        status: "pending",
       };
 
       const order = await createOrder(orderData);
 
-      if (!order || !order.id) {
+      const orderId = order?.id || order?.data?.id;
+
+      if (!orderId) {
         throw new Error("Failed to create order. Please try again.");
       }
 
-      // Clear the cart
       clearCart();
 
-      // Navigate to the invoice page
-      navigate(`/invoices/${order.id}`);
+      navigate(`/invoices/${orderId}`);
     } catch (err) {
       console.error("Error placing order:", err);
       setError(err.message || "Failed to place order. Please try again.");
+    } finally {
       setProcessingOrder(false);
     }
+  };
+
+  const handleAddNewAddress = () => {
+    navigate("/account/addresses/new", {
+      state: { returnTo: "/checkout" },
+    });
+  };
+
+  // Function to handle address selection
+  const handleAddressSelect = (addressId) => {
+    console.log("Selecting address ID:", addressId);
+    setSelectedAddressId(addressId);
   };
 
   if (cartItems.length === 0) {
@@ -362,7 +375,7 @@ const Checkout = () => {
                       </p>
                       <button
                         className="btn btn-primary"
-                        onClick={() => navigate("/account/addresses/new")}
+                        onClick={handleAddNewAddress}
                       >
                         Tambah Alamat Baru
                       </button>
@@ -386,27 +399,68 @@ const Checkout = () => {
                             cursor: "pointer",
                             transition: "all 0.2s",
                           }}
-                          onClick={() => setSelectedAddressId(address.id)}
+                          onClick={() => handleAddressSelect(address.id)}
                         >
                           <div className="d-flex justify-between mb-2">
                             <div className="d-flex gap-2 align-center">
                               <h4 style={{ fontWeight: "600" }}>
-                                {address.name}
+                                {address.name ||
+                                  address.recipientName ||
+                                  "Alamat"}
                               </h4>
+                              {address.isDefault && (
+                                <span className="badge badge-success">
+                                  Default
+                                </span>
+                              )}
                               {selectedAddressId === address.id && (
                                 <span className="badge badge-primary">
                                   Selected
                                 </span>
                               )}
                             </div>
+                            <div className="d-flex gap-2">
+                              <Link
+                                to={`/account/addresses/${address.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="btn btn-sm btn-outline d-flex align-center"
+                                title="Edit address"
+                              >
+                                <FiEdit2 size={16} />
+                              </Link>
+                            </div>
                           </div>
                           <p style={{ color: "var(--gray-700)" }}>
                             {address.province}, {address.regency},{" "}
                             {address.district}, {address.village},{" "}
-                            {address.detail}
+                            {address.detail || address.streetAddress}
                           </p>
+                          <div className="mt-2 d-flex justify-end">
+                            <span
+                              className="badge"
+                              style={{
+                                backgroundColor: "var(--gray-100)",
+                                color: "var(--gray-800)",
+                                padding: "6px 10px",
+                                fontSize: "14px",
+                              }}
+                            >
+                              Biaya Pengiriman: Rp{" "}
+                              {getShippingCost(
+                                address.regency
+                              ).toLocaleString()}
+                            </span>
+                          </div>
                         </div>
                       ))}
+                      <div className="d-flex justify-end mt-3">
+                        <button
+                          className="btn btn-outline btn-sm"
+                          onClick={handleAddNewAddress}
+                        >
+                          + Tambah Alamat Baru
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -474,7 +528,9 @@ const Checkout = () => {
                               marginBottom: "0.25rem",
                             }}
                           >
-                            {selectedAddress.name}
+                            {selectedAddress.name ||
+                              selectedAddress.recipientName ||
+                              "Alamat"}
                           </p>
                           <p
                             style={{
@@ -485,8 +541,21 @@ const Checkout = () => {
                             {selectedAddress.province},{" "}
                             {selectedAddress.regency},{" "}
                             {selectedAddress.district},{" "}
-                            {selectedAddress.village}, {selectedAddress.detail}
+                            {selectedAddress.village},{" "}
+                            {selectedAddress.detail ||
+                              selectedAddress.streetAddress}
                           </p>
+                          {selectedAddress.phoneNumber && (
+                            <p
+                              style={{
+                                color: "var(--gray-600)",
+                                fontSize: "0.875rem",
+                                marginTop: "0.25rem",
+                              }}
+                            >
+                              Tel: {selectedAddress.phoneNumber}
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>

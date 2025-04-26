@@ -8,6 +8,7 @@ import {
   createAddress,
   updateAddress,
   getAddressById,
+  getShippingCost,
 } from "../api/address";
 import { useAuth } from "../features/Auth/context";
 
@@ -18,6 +19,7 @@ const AddAddress = () => {
   const [regency, setRegency] = useState("");
   const [district, setDistrict] = useState("");
   const [village, setVillage] = useState("");
+  const [shippingCost, setShippingCost] = useState(0);
 
   const [provinces, setProvinces] = useState([]);
   const [regencies, setRegencies] = useState([]);
@@ -26,6 +28,7 @@ const AddAddress = () => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const navigate = useNavigate();
   const { id } = useParams();
@@ -36,7 +39,8 @@ const AddAddress = () => {
       try {
         const data = await getProvinces();
         setProvinces(data);
-      } catch {
+      } catch (error) {
+        console.error("Error fetching provinces:", error);
         setError("Gagal mengambil data provinsi.");
       }
     };
@@ -52,22 +56,28 @@ const AddAddress = () => {
           setName(address.name);
           setDetail(address.detail);
           setProvince(address.province);
-          setRegency(address.regency);
-          setDistrict(address.district);
-          setVillage(address.village);
 
-          // Load dependent dropdowns
+          // Fetch regencies after setting province
           const regenciesData = await getRegencies(address.province);
           setRegencies(regenciesData);
+          setRegency(address.regency);
 
+          // Fetch districts after setting regency
           const districtsData = await getDistricts(address.regency);
           setDistricts(districtsData);
+          setDistrict(address.district);
 
+          // Fetch villages after setting district
           const villagesData = await getVillages(address.district);
           setVillages(villagesData);
+          setVillage(address.village);
+
+          // Update shipping cost
+          setShippingCost(getShippingCost(address.regency));
 
           setLoading(false);
-        } catch {
+        } catch (error) {
+          console.error("Error fetching address:", error);
           setError("Gagal mengambil data alamat.");
           setLoading(false);
         }
@@ -83,7 +93,8 @@ const AddAddress = () => {
         try {
           const data = await getRegencies(province);
           setRegencies(data);
-        } catch {
+        } catch (error) {
+          console.error("Error fetching regencies:", error);
           setError("Gagal mengambil data kabupaten.");
         }
       };
@@ -94,6 +105,7 @@ const AddAddress = () => {
       setVillage("");
       setDistricts([]);
       setVillages([]);
+      setShippingCost(0);
     }
   }, [province]);
 
@@ -103,7 +115,10 @@ const AddAddress = () => {
         try {
           const data = await getDistricts(regency);
           setDistricts(data);
-        } catch {
+          // Update shipping cost when regency changes
+          setShippingCost(getShippingCost(regency));
+        } catch (error) {
+          console.error("Error fetching districts:", error);
           setError("Gagal mengambil data kecamatan.");
         }
       };
@@ -121,7 +136,8 @@ const AddAddress = () => {
         try {
           const data = await getVillages(district);
           setVillages(data);
-        } catch {
+        } catch (error) {
+          console.error("Error fetching villages:", error);
           setError("Gagal mengambil data kelurahan.");
         }
       };
@@ -155,12 +171,15 @@ const AddAddress = () => {
 
       if (id) {
         await updateAddress(Number(id), addressData);
+        setSuccessMessage("Alamat berhasil diperbarui!");
+        setTimeout(() => navigate("/account/addresses"), 1500);
       } else {
         await createAddress(addressData);
+        setSuccessMessage("Alamat baru berhasil ditambahkan!");
+        setTimeout(() => navigate("/account/addresses"), 1500);
       }
-
-      navigate("/account/addresses");
-    } catch {
+    } catch (error) {
+      console.error("Error saving address:", error);
       setError("Gagal menyimpan alamat.");
     } finally {
       setLoading(false);
@@ -168,7 +187,14 @@ const AddAddress = () => {
   };
 
   if (loading && id) {
-    return <div>Memuat data...</div>;
+    return (
+      <div className="card">
+        <div className="p-4 text-center">
+          <div className="spinner"></div>
+          <p>Memuat data...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -177,6 +203,9 @@ const AddAddress = () => {
         <h3 className="mb-4">{id ? "Edit Alamat" : "Tambah Alamat Baru"}</h3>
 
         {error && <div className="alert alert-danger mb-4">{error}</div>}
+        {successMessage && (
+          <div className="alert alert-success mb-4">{successMessage}</div>
+        )}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -186,6 +215,7 @@ const AddAddress = () => {
               className="form-control"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              placeholder="Masukkan nama untuk alamat ini"
               required
             />
           </div>
@@ -224,6 +254,13 @@ const AddAddress = () => {
               ))}
             </select>
           </div>
+
+          {regency && (
+            <div className="form-group bg-light p-2 mb-3 rounded">
+              <label className="form-label mb-1">Biaya Pengiriman:</label>
+              <div className="fw-bold">Rp {shippingCost.toLocaleString()}</div>
+            </div>
+          )}
 
           <div className="form-group">
             <label className="form-label">Kecamatan</label>
@@ -268,17 +305,28 @@ const AddAddress = () => {
               className="form-control"
               value={detail}
               onChange={(e) => setDetail(e.target.value)}
+              placeholder="Masukkan detail lengkap alamat (jalan, nomor rumah, patokan)"
               required
             />
           </div>
 
-          <button
-            type="submit"
-            className="btn btn-primary w-100 mt-3"
-            disabled={loading}
-          >
-            {loading ? "Menyimpan..." : "Simpan"}
-          </button>
+          <div className="d-flex gap-2 mt-4">
+            <button
+              type="button"
+              className="btn btn-outline w-50"
+              onClick={() => navigate("/account/addresses")}
+              disabled={loading}
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary w-50"
+              disabled={loading}
+            >
+              {loading ? "Menyimpan..." : id ? "Perbarui" : "Simpan"}
+            </button>
+          </div>
         </form>
       </div>
     </div>

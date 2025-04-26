@@ -1,15 +1,14 @@
 import { Link } from "react-router-dom";
-import { useCart } from "../features/Cart/context"; // Pastikan path benar
+import { useCart } from "../features/Cart/context";
 import { useAuth } from "../features/Auth/context";
 import { ShoppingCart, User, Search, Menu } from "react-feather";
 import { useState } from "react";
 
 const TopBar = () => {
-  const { getCartCount } = useCart(); // Mengakses getCartCount dari context
+  const { getCartCount } = useCart();
   const { currentUser: _currentUser } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Debugging untuk memastikan getCartCount terpasang dengan benar
   if (typeof getCartCount !== "function") {
     console.error("getCartCount is not a function:", getCartCount);
   }

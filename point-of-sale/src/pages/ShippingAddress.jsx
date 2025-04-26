@@ -1,117 +1,123 @@
-"use client";
-
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import Header from "../components/Header";
-import { useAuth } from "../contexts/AuthContext";
+import { Link } from "react-router-dom";
+import { getAddresses, getShippingCost } from "../api/address";
+import { useAuth } from "../features/Auth/context";
+import Address from "./Address";
+import { PlusSquare } from "react-feather";
 
-const ShippingAddress = () => {
+const ShippingAddressSelector = ({ onAddressSelect, selectedAddressId }) => {
   const [addresses, setAddresses] = useState([]);
-  const [selectedAddressId, setSelectedAddressId] = useState(null);
-  const navigate = useNavigate();
-  const { currentUser: _currentUser } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const { currentUser } = useAuth();
 
   useEffect(() => {
-    // In a real app, this would be an API call
-    // Mock data for now
-    setAddresses([
-      {
-        id: 1,
-        name: "Bandung",
-        detail:
-          "JAWA BARAT, KOTA BANDUNG, BOJONGKIDUL, CIBEUNYING WETAN, Sukaraja",
-      },
-    ]);
+    const fetchAddresses = async () => {
+      try {
+        setLoading(true);
+        const data = await getAddresses(currentUser?.id);
+        setAddresses(data);
 
-    if (addresses.length > 0) {
-      setSelectedAddressId(addresses[0].id);
+        // If no address is selected yet and there's a default address, select it
+        if (!selectedAddressId && data.length > 0) {
+          const defaultAddress = data.find((addr) => addr.isDefault);
+          if (defaultAddress) {
+            onAddressSelect(defaultAddress.id);
+          } else if (data.length > 0) {
+            // If no default address, select the first one
+            onAddressSelect(data[0].id);
+          }
+        }
+
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching addresses:", error);
+        setError("Gagal memuat daftar alamat.");
+        setLoading(false);
+      }
+    };
+
+    if (currentUser?.id) {
+      fetchAddresses();
+    } else {
+      setLoading(false);
+      setError(
+        "Silakan login terlebih dahulu untuk melihat alamat pengiriman."
+      );
     }
-  }, []);
+  }, [currentUser, onAddressSelect, selectedAddressId]);
 
-  const handleContinue = () => {
-    if (!selectedAddressId) {
-      alert("Silakan pilih alamat pengiriman");
-      return;
-    }
-
-    navigate("/checkout");
+  const handleAddressSelect = (addressId) => {
+    onAddressSelect(addressId);
   };
 
-  return (
-    <div
-      style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}
-    >
-      <Header />
-
-      <div className="container" style={{ flex: 1, padding: "2rem 1rem" }}>
-        <div className="card">
-          <div className="p-4">
-            <h2 className="mb-4">Checkout</h2>
-
-            <div className="card mb-4">
-              <div className="p-4">
-                <h3 className="mb-4">Pilih Alamat Pengiriman</h3>
-
-                {addresses.length === 0 ? (
-                  <div>
-                    <p>Anda belum memiliki alamat pengiriman.</p>
-                    <button
-                      className="btn btn-primary"
-                      style={{ marginTop: "1rem" }}
-                      onClick={() => navigate("/account/addresses/new")}
-                    >
-                      Tambah Alamat Baru
-                    </button>
-                  </div>
-                ) : (
-                  <div>
-                    {addresses.map((address) => (
-                      <div
-                        key={address.id}
-                        className="d-flex align-center mb-2"
-                        style={{
-                          padding: "1rem",
-                          border: "1px solid #eee",
-                          borderRadius: "4px",
-                        }}
-                      >
-                        <input
-                          type="radio"
-                          id={`address-${address.id}`}
-                          name="shipping-address"
-                          checked={selectedAddressId === address.id}
-                          onChange={() => setSelectedAddressId(address.id)}
-                          style={{ marginRight: "1rem" }}
-                        />
-                        <label
-                          htmlFor={`address-${address.id}`}
-                          style={{ flex: 1 }}
-                        >
-                          <div>
-                            <strong>{address.name}</strong>
-                          </div>
-                          <div>{address.detail}</div>
-                        </label>
-                      </div>
-                    ))}
-
-                    <div className="text-right">
-                      <button
-                        className="btn btn-primary"
-                        onClick={handleContinue}
-                      >
-                        Lanjut Bayar
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+  if (loading) {
+    return (
+      <div className="card">
+        <div className="p-4 text-center">
+          <div className="spinner"></div>
+          <p>Memuat data alamat pengiriman...</p>
         </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card">
+      <div className="p-4">
+        <div className="d-flex justify-between align-center mb-4">
+          <h3>Alamat Pengiriman</h3>
+          <Link
+            to="/account/addresses/new?redirect=checkout"
+            className="btn btn-outline-primary d-flex align-center gap-2"
+          >
+            <PlusSquare size={16} />
+            <span>Tambah Alamat</span>
+          </Link>
+        </div>
+
+        {error && <div className="alert alert-danger">{error}</div>}
+
+        {addresses.length === 0 ? (
+          <div className="text-center p-4 bg-light rounded">
+            <p>Anda belum memiliki alamat tersimpan.</p>
+            <Link
+              to="/account/addresses/new?redirect=checkout"
+              className="btn btn-primary mt-2"
+            >
+              Tambah Alamat Baru
+            </Link>
+          </div>
+        ) : (
+          <div className="address-list">
+            {addresses.map((address) => {
+              // Calculate shipping cost correctly using the regency
+              const shippingCost = getShippingCost(address.regency);
+
+              console.log(
+                "Address regency:",
+                address.regency,
+                "Shipping cost:",
+                shippingCost
+              );
+
+              return (
+                <Address
+                  key={address.id}
+                  address={address}
+                  onSelect={handleAddressSelect}
+                  isSelected={selectedAddressId === address.id}
+                  hideControls={true}
+                  showShippingCost={true}
+                  shippingCost={shippingCost}
+                />
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-export default ShippingAddress;
+export default ShippingAddressSelector;

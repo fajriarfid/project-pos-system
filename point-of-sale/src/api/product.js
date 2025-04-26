@@ -76,7 +76,6 @@ const products = [
 ];
 
 export const getProducts = async () => {
-  // In a real app, this would make an API call
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve(products);
@@ -85,7 +84,6 @@ export const getProducts = async () => {
 };
 
 export const getProductById = async (productId) => {
-  // In a real app, this would make an API call
   return new Promise((resolve, reject) => {
     setTimeout(() => {
       const product = products.find((p) => p.id === productId);
@@ -99,7 +97,6 @@ export const getProductById = async (productId) => {
 };
 
 export const getCategories = async () => {
-  // In a real app, this would make an API call
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve([

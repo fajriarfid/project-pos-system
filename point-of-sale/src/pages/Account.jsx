@@ -1,5 +1,11 @@
 import { useState, useEffect } from "react";
-import { Routes, Route, NavLink, useNavigate } from "react-router-dom";
+import {
+  Routes,
+  Route,
+  NavLink,
+  useNavigate,
+  useLocation,
+} from "react-router-dom";
 import TopBar from "../components/TopBar";
 import Profile from "../components/Profile";
 import AddAddress from "../components/AddAddress";
@@ -21,6 +27,7 @@ import {
 const Account = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [addresses, setAddresses] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -32,7 +39,7 @@ const Account = () => {
     const fetchAddresses = async () => {
       try {
         setLoadingAddresses(true);
-        setErrorMessage(""); // Reset error state before fetch
+        setErrorMessage("");
         const data = await getAddresses(currentUser.id);
         setAddresses(data);
         setLoadingAddresses(false);
@@ -43,6 +50,12 @@ const Account = () => {
       }
     };
 
+    if (location.pathname.includes("/account/addresses")) {
+      fetchAddresses();
+    }
+  }, [currentUser.id, location.pathname]);
+
+  useEffect(() => {
     const fetchOrders = async () => {
       try {
         setLoadingOrders(true);
@@ -57,15 +70,18 @@ const Account = () => {
       }
     };
 
-    fetchAddresses();
-    fetchOrders();
-  }, [currentUser.id]);
+    // Only fetch orders when needed
+    if (location.pathname.includes("/account/orders")) {
+      fetchOrders();
+    }
+  }, [currentUser.id, location.pathname]);
 
   const handleDeleteAddress = async (addressId) => {
     if (window.confirm("Are you sure you want to delete this address?")) {
       try {
         setErrorMessage(""); // Reset error state before delete
         await deleteAddress(addressId);
+        // Update the UI by removing the deleted address
         setAddresses(addresses.filter((addr) => addr.id !== addressId));
       } catch (error) {
         console.error("Failed to delete address:", error);
@@ -279,12 +295,12 @@ const Account = () => {
                     <div className="card-body">
                       {loadingAddresses ? (
                         <div className="d-flex flex-column gap-3">
-                          {[1, 2].map((i) => (
+                          {[1, 2, 3].map((i) => (
                             <div
                               key={i}
                               className="skeleton"
                               style={{
-                                height: "100px",
+                                height: "120px",
                                 borderRadius: "var(--radius)",
                               }}
                             />
@@ -299,12 +315,12 @@ const Account = () => {
                               margin: "0 auto 1rem",
                             }}
                           />
-                          <p className="mb-4">Anda belum memiliki alamat.</p>
+                          <p className="mb-4">Anda belum menambahkan alamat.</p>
                           <button
-                            className="btn btn-primary d-flex align-center gap-2 mx-auto"
+                            className="btn btn-primary"
                             onClick={() => navigate("/account/addresses/new")}
                           >
-                            <Plus size={18} /> Tambah Alamat
+                            Tambah Alamat
                           </button>
                         </div>
                       ) : (
@@ -322,7 +338,6 @@ const Account = () => {
                   </div>
                 }
               />
-
               <Route path="/addresses/new" element={<AddAddress />} />
               <Route path="/addresses/:id" element={<AddAddress />} />
             </Routes>

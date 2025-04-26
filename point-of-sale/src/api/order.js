@@ -21,12 +21,11 @@ const orders = [
 ];
 
 export const createOrder = async (orderData) => {
-  // In a real app, this would make an API call
   return new Promise((resolve) => {
     setTimeout(() => {
       const newOrder = {
         id: orders.length + 1,
-        userId: 1, // Assuming user is logged in
+        userId: 1,
         ...orderData,
         status: "waiting_payment",
         createdAt: new Date().toISOString(),
@@ -40,7 +39,6 @@ export const createOrder = async (orderData) => {
 };
 
 export const getOrders = async (userId) => {
-  // In a real app, this would make an API call
   return new Promise((resolve) => {
     setTimeout(() => {
       const userOrders = orders.filter((order) => order.userId === userId);
@@ -50,7 +48,6 @@ export const getOrders = async (userId) => {
 };
 
 export const getOrderById = async (orderId) => {
-  // In a real app, this would make an API call
   return new Promise((resolve, reject) => {
     setTimeout(() => {
       const order = orders.find((o) => o.id === Number.parseInt(orderId));
@@ -64,7 +61,6 @@ export const getOrderById = async (orderId) => {
 };
 
 export const updateOrderStatus = async (orderId, status) => {
-  // In a real app, this would make an API call
   return new Promise((resolve, reject) => {
     setTimeout(() => {
       const orderIndex = orders.findIndex(

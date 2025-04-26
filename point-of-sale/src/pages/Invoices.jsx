@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import TopBar from "../components/TopBar";
@@ -100,8 +98,6 @@ const Invoices = () => {
   };
 
   const handleDownloadPDF = () => {
-    // Implement the PDF download functionality
-    // This is a placeholder - in a real app, you would use a library like jsPDF or integrate with a server-side PDF generator
     alert("Download PDF functionality would be implemented here");
   };
 

@@ -1,108 +1,218 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
+import {
+  getProvinces,
+  getRegencies,
+  getDistricts,
+  getVillages,
+  createAddress,
+  updateAddress,
+  getAddressById,
+  getShippingCost,
+} from "../api/address";
+import { useAuth } from "../features/Auth/context";
 
 const AddressForm = () => {
-  const [name, setName] = useState("Bandung");
-  const [detail, setDetail] = useState("Sukaraja");
-  const [province, setProvince] = useState("JAWA BARAT");
+  const [name, setName] = useState("");
+  const [detail, setDetail] = useState("");
+  const [province, setProvince] = useState("");
   const [regency, setRegency] = useState("");
   const [district, setDistrict] = useState("");
   const [village, setVillage] = useState("");
+  const [shippingCost, setShippingCost] = useState(0);
+
   const [provinces, setProvinces] = useState([]);
   const [regencies, setRegencies] = useState([]);
   const [districts, setDistricts] = useState([]);
   const [villages, setVillages] = useState([]);
 
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+
   const navigate = useNavigate();
   const { id } = useParams();
+  const location = useLocation();
+  const { currentUser } = useAuth();
+
+  // Mendapatkan URL redirect jika ada
+  const redirectUrl =
+    new URLSearchParams(location.search).get("redirect") ||
+    "/account/addresses";
 
   useEffect(() => {
-    // In a real app, these would be API calls
-    // Mock data for now
-    setProvinces([
-      { id: 1, name: "ACEH" },
-      { id: 2, name: "SUMATERA UTARA" },
-      { id: 3, name: "SUMATERA BARAT" },
-      { id: 4, name: "RIAU" },
-      { id: 5, name: "JAMBI" },
-      { id: 6, name: "SUMATERA SELATAN" },
-      { id: 7, name: "BENGKULU" },
-      { id: 8, name: "LAMPUNG" },
-      { id: 9, name: "KEPULAUAN BANGKA BELITUNG" },
-      { id: 10, name: "KEPULAUAN RIAU" },
-      { id: 11, name: "DKI JAKARTA" },
-      { id: 12, name: "JAWA BARAT" },
-      { id: 13, name: "JAWA TENGAH" },
-      { id: 14, name: "DI YOGYAKARTA" },
-      { id: 15, name: "JAWA TIMUR" },
-      { id: 16, name: "BANTEN" },
-      { id: 17, name: "BALI" },
-      { id: 18, name: "NUSA TENGGARA BARAT" },
-      { id: 19, name: "NUSA TENGGARA TIMUR" },
-    ]);
+    const fetchProvinces = async () => {
+      try {
+        const data = await getProvinces();
+        setProvinces(data);
+      } catch (error) {
+        console.error("Error fetching provinces:", error);
+        setError("Gagal mengambil data provinsi.");
+      }
+    };
 
-    setRegencies([
-      { id: 1, name: "KOTA BOGOR" },
-      { id: 2, name: "KABUPATEN BOGOR" },
-      { id: 3, name: "KABUPATEN SUKABUMI" },
-      { id: 4, name: "KABUPATEN CIANJUR" },
-      { id: 5, name: "KABUPATEN BANDUNG" },
-      { id: 6, name: "KABUPATEN GARUT" },
-      { id: 7, name: "KABUPATEN TASIKMALAYA" },
-      { id: 8, name: "KABUPATEN CIAMIS" },
-      { id: 9, name: "KABUPATEN KUNINGAN" },
-      { id: 10, name: "KABUPATEN CIREBON" },
-      { id: 11, name: "KABUPATEN MAJALENGKA" },
-      { id: 12, name: "KABUPATEN SUMEDANG" },
-      { id: 13, name: "KABUPATEN INDRAMAYU" },
-      { id: 14, name: "KABUPATEN SUBANG" },
-      { id: 15, name: "KABUPATEN PURWAKARTA" },
-      { id: 16, name: "KABUPATEN KARAWANG" },
-      { id: 17, name: "KABUPATEN BEKASI" },
-      { id: 18, name: "KABUPATEN BANDUNG BARAT" },
-      { id: 19, name: "KABUPATEN PANGANDARAN" },
-    ]);
+    fetchProvinces();
 
-    setDistricts([
-      { id: 1, name: "CIBEUNYING WETAN" },
-      { id: 2, name: "CIBEUNYING KIDUL" },
-      { id: 3, name: "COBLONG" },
-      { id: 4, name: "SUKAJADI" },
-      { id: 5, name: "SUKASARI" },
-    ]);
-
-    setVillages([
-      { id: 1, name: "SUKARAJA" },
-      { id: 2, name: "SUKAMAJU" },
-      { id: 3, name: "SUKAHAJI" },
-      { id: 4, name: "SUKASENANG" },
-    ]);
-
-    // If editing an existing address, fetch its data
     if (id) {
-      // In a real app, this would be an API call
-      // Mock data for now
-      setName("Bandung");
-      setDetail("Sukaraja");
-      setProvince("JAWA BARAT");
-      setRegency("KOTA BANDUNG");
-      setDistrict("CIBEUNYING WETAN");
-      setVillage("SUKARAJA");
+      const fetchAddress = async () => {
+        try {
+          setLoading(true);
+          const address = await getAddressById(Number(id));
+
+          setName(address.name);
+          setDetail(address.detail);
+          setProvince(address.province);
+
+          // Fetch regencies after setting province
+          const regenciesData = await getRegencies(address.province);
+          setRegencies(regenciesData);
+          setRegency(address.regency);
+
+          // Fetch districts after setting regency
+          const districtsData = await getDistricts(address.regency);
+          setDistricts(districtsData);
+          setDistrict(address.district);
+
+          // Fetch villages after setting district
+          const villagesData = await getVillages(address.district);
+          setVillages(villagesData);
+          setVillage(address.village);
+
+          // Update shipping cost
+          setShippingCost(getShippingCost(address.regency));
+
+          setLoading(false);
+        } catch (error) {
+          console.error("Error fetching address:", error);
+          setError("Gagal mengambil data alamat.");
+          setLoading(false);
+        }
+      };
+
+      fetchAddress();
     }
   }, [id]);
 
-  const handleSubmit = (e) => {
+  useEffect(() => {
+    if (province) {
+      const fetchRegencies = async () => {
+        try {
+          const data = await getRegencies(province);
+          setRegencies(data);
+        } catch (error) {
+          console.error("Error fetching regencies:", error);
+          setError("Gagal mengambil data kabupaten.");
+        }
+      };
+
+      fetchRegencies();
+      setRegency("");
+      setDistrict("");
+      setVillage("");
+      setDistricts([]);
+      setVillages([]);
+      setShippingCost(0);
+    }
+  }, [province]);
+
+  useEffect(() => {
+    if (regency) {
+      const fetchDistricts = async () => {
+        try {
+          const data = await getDistricts(regency);
+          setDistricts(data);
+          setShippingCost(getShippingCost(regency));
+        } catch (error) {
+          console.error("Error fetching districts:", error);
+          setError("Gagal mengambil data kecamatan.");
+        }
+      };
+
+      fetchDistricts();
+      setDistrict("");
+      setVillage("");
+      setVillages([]);
+    }
+  }, [regency]);
+
+  useEffect(() => {
+    if (district) {
+      const fetchVillages = async () => {
+        try {
+          const data = await getVillages(district);
+          setVillages(data);
+        } catch (error) {
+          console.error("Error fetching villages:", error);
+          setError("Gagal mengambil data kelurahan.");
+        }
+      };
+
+      fetchVillages();
+      setVillage("");
+    }
+  }, [district]);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // In a real app, this would be an API call
-    // For now, just navigate back
-    navigate("/account/addresses");
+    if (!name || !province || !regency || !district || !village || !detail) {
+      setError("Mohon lengkapi semua data.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+
+      const addressData = {
+        userId: currentUser?.id,
+        name,
+        detail,
+        province,
+        regency,
+        district,
+        village,
+      };
+
+      if (id) {
+        await updateAddress(Number(id), addressData);
+        setSuccessMessage("Alamat berhasil diperbarui!");
+
+        setTimeout(() => navigate(redirectUrl), 1500);
+      } else {
+        await createAddress(addressData);
+        setSuccessMessage("Alamat baru berhasil ditambahkan!");
+
+        setTimeout(() => navigate(redirectUrl), 1500);
+      }
+    } catch (error) {
+      console.error("Error saving address:", error);
+      setError("Gagal menyimpan alamat.");
+    } finally {
+      setLoading(false);
+    }
   };
+
+  if (loading && id) {
+    return (
+      <div className="card">
+        <div className="p-4 text-center">
+          <div className="spinner"></div>
+          <p>Memuat data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="card">
       <div className="p-4">
         <h3 className="mb-4">{id ? "Edit Alamat" : "Tambah Alamat Baru"}</h3>
+
+        {error && <div className="alert alert-danger mb-4">{error}</div>}
+        {successMessage && (
+          <div className="alert alert-success mb-4">{successMessage}</div>
+        )}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -112,6 +222,7 @@ const AddressForm = () => {
               className="form-control"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              placeholder="Masukkan nama untuk alamat ini"
               required
             />
           </div>
@@ -140,6 +251,7 @@ const AddressForm = () => {
               value={regency}
               onChange={(e) => setRegency(e.target.value)}
               required
+              disabled={!province}
             >
               <option value="">Pilih lokasi...</option>
               {regencies.map((reg) => (
@@ -150,6 +262,13 @@ const AddressForm = () => {
             </select>
           </div>
 
+          {regency && (
+            <div className="form-group bg-light p-2 mb-3 rounded">
+              <label className="form-label mb-1">Biaya Pengiriman:</label>
+              <div className="fw-bold">Rp {shippingCost.toLocaleString()}</div>
+            </div>
+          )}
+
           <div className="form-group">
             <label className="form-label">Kecamatan</label>
             <select
@@ -157,6 +276,7 @@ const AddressForm = () => {
               value={district}
               onChange={(e) => setDistrict(e.target.value)}
               required
+              disabled={!regency}
             >
               <option value="">Pilih lokasi...</option>
               {districts.map((dist) => (
@@ -174,6 +294,7 @@ const AddressForm = () => {
               value={village}
               onChange={(e) => setVillage(e.target.value)}
               required
+              disabled={!district}
             >
               <option value="">Pilih lokasi...</option>
               {villages.map((vil) => (
@@ -191,17 +312,28 @@ const AddressForm = () => {
               className="form-control"
               value={detail}
               onChange={(e) => setDetail(e.target.value)}
+              placeholder="Masukkan detail lengkap alamat (jalan, nomor rumah, patokan)"
               required
             />
           </div>
 
-          <button
-            type="submit"
-            className="btn btn-primary w-100"
-            style={{ marginTop: "1rem" }}
-          >
-            Simpan
-          </button>
+          <div className="d-flex gap-2 mt-4">
+            <button
+              type="button"
+              className="btn btn-outline w-50"
+              onClick={() => navigate("/account/addresses")}
+              disabled={loading}
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary w-50"
+              disabled={loading}
+            >
+              {loading ? "Menyimpan..." : id ? "Perbarui" : "Simpan"}
+            </button>
+          </div>
         </form>
       </div>
     </div>

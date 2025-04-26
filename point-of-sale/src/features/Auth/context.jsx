@@ -24,12 +24,12 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const loginUser = async (email) => {
+  const loginUser = async () => {
     // Bisa tambahkan password jika dibutuhkan
     const user = {
       id: 1,
-      name: "Pelita Nur Zsa Zsa",
-      email,
+      name: "Profil",
+      email: "fajriarfid.com",
     };
 
     localStorage.setItem("user", JSON.stringify(user));
